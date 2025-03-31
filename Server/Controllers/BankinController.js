@@ -88,46 +88,6 @@ const balanceDisplay = async (req, res) => {
   res.status(200).send(data);
 };
 // Reset Password Controller
-const resetPassword = async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-
-  try {
-    // Validate input fields
-    if (!email || !otp || !newPassword) {
-      return res.status(400).json({ success: false, message: "All fields are required." });
-    }
-
-    // Find the user by email
-    const user = await bankModel.findOne({ email });
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found." });
-    }
-
-    // Validate OTP and check expiry
-    if (user.otp !== otp || Date.now() > user.otpExpiry) {
-      return res.status(400).json({ success: false, message: "Invalid or expired OTP." });
-    }
-
-    // Validate password strength (optional, if not done on frontend)
-    if (newPassword.length < 6) {
-      return res.status(400).json({ success: false, message: "Password must be at least 6 characters long." });
-    }
-
-    // Hash the new password
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // Update user's password and clear OTP
-    user.password = hashedPassword;
-    user.otp = null; // Clear OTP
-    user.otpExpiry = null; // Clear OTP expiry
-    await user.save();
-
-    res.status(200).json({ success: true, message: "Password has been updated successfully." });
-  } catch (error) {
-    console.error("Error resetting password:", error.message || error);
-    res.status(500).json({ success: false, message: "An error occurred while resetting the password." });
-  }
-};
 
 
 // Send OTP
@@ -137,7 +97,7 @@ const sendOtp = async (req, res) => {
   try {
     const user = await bankModel.findOne({ email });
     if (!user) {
-      return res.status(404).send("User not found.");
+      return res.status(404).json({ success: false, message: "User not found." });
     }
 
     // Generate a random 6-digit OTP
@@ -148,6 +108,9 @@ const sendOtp = async (req, res) => {
     if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
       throw new Error("Missing email credentials.");
     }
+
+
+
 
     const transporter = nodemailer.createTransport({
       service: process.env.EMAIL_SERVICE || "gmail",

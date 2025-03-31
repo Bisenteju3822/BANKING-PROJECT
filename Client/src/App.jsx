@@ -5,7 +5,6 @@ import Registration from "./Pages/Registration";
 import Dashboard from "./Dashboard";
 import HomePage from "./Pages/HomePage";
 import Accountstate from "./Pages/AccountState";
-import ResetPassword from "./Pages/ResetPasword";
 import BalanceInquiry from "./Pages/BalanceInquirey";
 import BillPayment from "./BillPayment";
 import DepositeMoney from "./Pages/DepositeMoney";
@@ -28,7 +27,6 @@ const App = () => {
         <Route path="/balanceInquiry" element={<BalanceInquiry />} />
         <Route path="/deposit" element={<DepositeMoney />} />
         <Route path="/withdraw" element={<Withdraw />} />
-        <Route path="/resetpassword" element={<ResetPassword />} />
         <Route path="/bill" element={<BillPayment />} />
         <Route path="/services" element={<Services />} />
       </Routes>
