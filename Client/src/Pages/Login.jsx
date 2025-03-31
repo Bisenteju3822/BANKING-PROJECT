@@ -86,7 +86,7 @@ const Login = () => {
                 </span>
               </label>
               <p
-                onClick={() => navigate("/forgot-password")}
+                onClick={() => navigate("/sendotp")}
                 className="text-sm font-medium text-indigo-600 cursor-pointer hover:text-indigo-500"
               >
                 Forgot Password?

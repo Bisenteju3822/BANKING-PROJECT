@@ -7,6 +7,7 @@ import { FaArrowUp, FaArrowDown } from "react-icons/fa";
 const AccountState = () => {
   const [data, setApiData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const loadData = async () => {
     const api = `${BASE_CONN}/banking/balance/?userid=${localStorage.getItem(
@@ -14,11 +15,17 @@ const AccountState = () => {
     )}`;
     try {
       const res = await axios.get(api);
+
+      if (!Array.isArray(res.data)) {
+        throw new Error("Unexpected data format");
+      }
+
       setApiData(res.data);
-    } catch (error) {
-      console.error(error);
+    } catch (err) {
+      setError("Failed to fetch account statements. Please try again later.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -42,6 +49,12 @@ const AccountState = () => {
           {loading ? (
             <div className="text-center">
               <Spinner animation="border" variant="primary" />
+            </div>
+          ) : error ? (
+            <div className="text-center text-danger">{error}</div>
+          ) : data.length === 0 ? (
+            <div className="text-center text-muted">
+              No account statements available.
             </div>
           ) : (
             <Card style={{ boxShadow: "0 4px 8px rgba(0, 0, 0, 0.1)" }}>
@@ -67,7 +80,7 @@ const AccountState = () => {
                       <tr key={index}>
                         <td>{index + 1}</td>
                         <td style={{ color: "green" }}>
-                          {e.status === "credited" ? (
+                          {e.status.toLowerCase() === "credited" ? (
                             <>
                               <FaArrowUp /> {e.amount}
                             </>
@@ -76,7 +89,7 @@ const AccountState = () => {
                           )}
                         </td>
                         <td style={{ color: "red" }}>
-                          {e.status === "Debited" ? (
+                          {e.status.toLowerCase() === "debited" ? (
                             <>
                               <FaArrowDown /> {e.amount}
                             </>
@@ -87,7 +100,7 @@ const AccountState = () => {
                         <td style={{ fontSize: "18px", fontWeight: "bold" }}>
                           {e.status}
                         </td>
-                        <td>{new Date(e.date).toLocaleDateString()}</td>
+                        <td>{new Date(e.date).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

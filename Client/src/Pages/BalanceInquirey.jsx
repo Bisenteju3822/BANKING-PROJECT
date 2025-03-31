@@ -6,28 +6,49 @@ import { FaArrowCircleUp, FaArrowCircleDown } from "react-icons/fa";
 
 const BalanceInquiry = () => {
   const [balance, setBalance] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   let creditAmount = 0;
   let debitAmount = 0;
   let netBalance = 0;
 
   const loadData = async () => {
-    const api = `${BASE_CONN}/banking/balance/?userid=${localStorage.getItem(
-      "userid"
-    )}`;
-    const res = await axios.get(api);
-    setBalance(res.data);
+    const userId = localStorage.getItem("userid");
+    if (!userId) {
+      console.error("User ID not found in localStorage");
+      setError("User ID is missing. Please log in again.");
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const res = await axios.get(
+        `${BASE_CONN}/banking/balance/?userid=${userId}`
+      );
+
+      if (!Array.isArray(res.data)) {
+        throw new Error("Unexpected API response format.");
+      }
+
+      setBalance(res.data);
+    } catch (err) {
+      console.error("Error fetching balance data:", err);
+      setError("Failed to fetch balance data. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
-  balance.forEach((e) => {
-    if (e.status === "credited") {
-      creditAmount += e.amount;
+  balance.forEach((transaction) => {
+    if (transaction.status?.toLowerCase() === "credited") {
+      creditAmount += transaction.amount || 0;
     }
-    if (e.status === "Debited") {
-      debitAmount += e.amount;
+    if (transaction.status?.toLowerCase() === "debited") {
+      debitAmount += transaction.amount || 0;
     }
   });
 
@@ -37,77 +58,44 @@ const BalanceInquiry = () => {
     <Container className="mt-5">
       <Row className="justify-content-center">
         <Col md={8} lg={6}>
-          <Card
-            className="shadow-lg border-0"
-            style={{ borderRadius: "10px", overflow: "hidden" }}
-          >
+          <Card className="shadow-lg border-0" style={{ borderRadius: "10px" }}>
             <Card.Header
-              style={{
-                background: "linear-gradient(45deg, #4caf50, #81c784)",
-                color: "white",
-                textAlign: "center",
-                fontSize: "1.5rem",
-                fontWeight: "bold",
-              }}
-              className="p-4"
+              className="p-4 text-center"
+              style={{ backgroundColor: "#4caf50", color: "white" }}
             >
               Balance Inquiry
             </Card.Header>
             <Card.Body className="p-4">
-              <Row className="mb-4">
-                <Col xs={6}>
-                  <div className="d-flex align-items-center">
-                    <FaArrowCircleUp
-                      size="1.5rem"
-                      color="green"
-                      className="me-2"
-                    />
-                    <strong>Credit Amount:</strong> ₹
-                    {creditAmount.toLocaleString()}
-                  </div>
-                </Col>
-                <Col xs={6}>
-                  <div className="d-flex align-items-center">
-                    <FaArrowCircleDown
-                      size="1.5rem"
-                      color="red"
-                      className="me-2"
-                    />
-                    <strong>Debit Amount:</strong> ₹
-                    {debitAmount.toLocaleString()}
-                  </div>
-                </Col>
-              </Row>
-              <Row className="mb-4">
-                <Col xs={12} className="text-center">
-                  <div
-                    style={{
-                      fontSize: "1.2rem",
-                      fontWeight: "bold",
-                      color: "#333",
-                    }}
+              {loading ? (
+                <div className="text-center">Loading...</div>
+              ) : error ? (
+                <div className="text-center text-danger">{error}</div>
+              ) : (
+                <>
+                  <Row className="mb-4">
+                    <Col>
+                      <FaArrowCircleUp className="me-2 text-success" />
+                      Credit Amount: ₹{creditAmount.toLocaleString()}
+                    </Col>
+                    <Col>
+                      <FaArrowCircleDown className="me-2 text-danger" />
+                      Debit Amount: ₹{debitAmount.toLocaleString()}
+                    </Col>
+                  </Row>
+                  <Row>
+                    <Col className="text-center">
+                      Net Balance: ₹{netBalance.toLocaleString()}
+                    </Col>
+                  </Row>
+                  <Button
+                    onClick={loadData}
+                    className="mt-4"
+                    style={{ fontWeight: "bold" }}
                   >
-                    <strong>Net Balance:</strong>{" "}
-                    <span style={{ color: netBalance >= 0 ? "green" : "red" }}>
-                      ₹{netBalance.toLocaleString()}
-                    </span>
-                  </div>
-                </Col>
-              </Row>
-              <Button
-                variant="success"
-                className="w-100"
-                onClick={loadData}
-                style={{
-                  transition: "transform 0.2s",
-                  fontWeight: "bold",
-                  padding: "10px",
-                }}
-                onMouseOver={(e) => (e.target.style.transform = "scale(1.05)")}
-                onMouseOut={(e) => (e.target.style.transform = "scale(1)")}
-              >
-                Refresh Data
-              </Button>
+                    Refresh Data
+                  </Button>
+                </>
+              )}
             </Card.Body>
           </Card>
         </Col>

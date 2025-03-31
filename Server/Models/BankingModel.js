@@ -14,6 +14,12 @@ const BankSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  otp: {
+    type: Number, // Store OTP as a number
+  },
+  otpExpiry: {
+    type: Date, // Set an expiration time for the OTP
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model("Bankingnew", BankSchema);

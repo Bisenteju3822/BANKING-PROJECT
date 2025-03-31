@@ -2,26 +2,27 @@ const bankModel = require("../Models/BankingModel");
 const autoPassword = require("../Middleware/autpass");
 const nodemailer = require("nodemailer");
 const TransactionModel = require("../Models/Transaction");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
 
-// Register New Banker
 const bankerRegistration = async (req, res) => {
   const { name, email, password, confirmPassword } = req.body;
+  console.log("Registration Request Body:", req.body);
 
   try {
     if (password && password !== confirmPassword) {
-      return res.status(400).json({ status: "error", message: "Passwords do not match." });
+      return res.status(400).send("Passwords do not match.");
     }
 
     const generatedPassword = password || autoPassword.generatePassword();
-    const hashedPassword = await bcrypt.hash(generatedPassword, 10); // Hash the password
 
     const bankerData = await bankModel.create({
       name,
       email,
-      password: hashedPassword,
+      password: generatedPassword,
     });
+
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error("Missing email credentials.");
+    }
 
     const transporter = nodemailer.createTransport({
       service: process.env.EMAIL_SERVICE || "gmail",
@@ -39,117 +40,137 @@ const bankerRegistration = async (req, res) => {
     };
 
     await transporter.sendMail(mailDetails);
+    console.log("Email sent successfully.");
 
-    res.status(201).json({ status: "success", message: "Registration successful. Check your email for login credentials." });
+    res.status(201).send({
+      message: "Registration successful. Check your email for login credentials.",
+    });
   } catch (error) {
     console.error("Error during registration:", error);
 
     if (error.code === 11000) {
-      return res.status(400).json({ status: "error", message: "Email is already registered." });
+      return res.status(400).send("Email is already registered.");
     }
 
-    res.status(500).json({ status: "error", message: "An error occurred during registration." });
+    res.status(500).send("An error occurred during registration.");
   }
 };
 
-// Login
 const bankerLogin = async (req, res) => {
   const { email, password } = req.body;
-
+  const data = await bankModel.findOne({ email: email });
   try {
-    const user = await bankModel.findOne({ email });
-    if (!user) {
-      return res.status(400).json({ status: "error", message: "Invalid email" });
+    if (!data) {
+      return res.status(400).send("Invalid email");
     }
-
-    const isPasswordCorrect = await bcrypt.compare(password, user.password); // Compare hashed password
-    if (!isPasswordCorrect) {
-      return res.status(400).json({ status: "error", message: "Invalid password" });
+    if (data.password != password) {
+      return res.status(400).send("Invalid password");
     }
-
-    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" }); // Generate JWT
-    res.status(200).json({ status: "success", message: "Login successful", token });
+    res.status(200).send(data);
   } catch (error) {
-    res.status(500).json({ status: "error", message: "An error occurred during login." });
+    res.status(400).send(error);
   }
 };
 
-// Deposit Data
 const DepositData = async (req, res) => {
   const { amount, status, customerid } = req.body;
-
-  try {
-    const data = await TransactionModel.create({ amount, status, customerid });
-    res.status(200).json({ status: "success", message: "Transaction recorded successfully", data });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: "An error occurred while processing the transaction." });
-  }
+  const data = await TransactionModel.create({
+    amount: amount,
+    status: status,
+    customerid: customerid,
+  });
+  res.status(200).send(data);
 };
 
-// Balance Display
 const balanceDisplay = async (req, res) => {
   const { userid } = req.query;
+  const data = await TransactionModel.find({ customerid: userid });
+  res.status(200).send(data);
+};
+// Reset Password Controller
+const resetPassword = async (req, res) => {
+  const { email, otp, newPassword } = req.body;
 
   try {
-    const data = await TransactionModel.find({ customerid: userid });
-    res.status(200).json({ status: "success", data });
+    // Validate input fields
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: "All fields are required." });
+    }
+
+    // Find the user by email
+    const user = await bankModel.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    // Validate OTP and check expiry
+    if (user.otp !== otp || Date.now() > user.otpExpiry) {
+      return res.status(400).json({ success: false, message: "Invalid or expired OTP." });
+    }
+
+    // Validate password strength (optional, if not done on frontend)
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, message: "Password must be at least 6 characters long." });
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user's password and clear OTP
+    user.password = hashedPassword;
+    user.otp = null; // Clear OTP
+    user.otpExpiry = null; // Clear OTP expiry
+    await user.save();
+
+    res.status(200).json({ success: true, message: "Password has been updated successfully." });
   } catch (error) {
-    res.status(500).json({ status: "error", message: "An error occurred while retrieving balance data." });
+    console.error("Error resetting password:", error.message || error);
+    res.status(500).json({ success: false, message: "An error occurred while resetting the password." });
   }
 };
 
-// Send OTP for Password Reset
-const sendResetOtp = async (req, res) => {
+
+// Send OTP
+const sendOtp = async (req, res) => {
   const { email } = req.body;
 
   try {
     const user = await bankModel.findOne({ email });
-    if (!user) return res.status(404).json({ status: "error", message: "User not found." });
+    if (!user) {
+      return res.status(404).send("User not found.");
+    }
 
-    const otp = Math.floor(100000 + Math.random() * 900000); // Generate 6-digit OTP
-    user.resetOtp = otp;
-    user.resetOtpExpiry = Date.now() + 10 * 60 * 1000; // OTP valid for 10 minutes
+    // Generate a random 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000);
+    user.otp = otp;
     await user.save();
 
+    if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+      throw new Error("Missing email credentials.");
+    }
+
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+      service: process.env.EMAIL_SERVICE || "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
     });
 
     const mailDetails = {
       from: process.env.EMAIL_USER,
       to: email,
-      subject: "Password Reset OTP",
-      text: `Your OTP for resetting your password is: ${otp}. This OTP is valid for 10 minutes.`,
+      subject: "Your OTP for Password Reset",
+      text: `Dear User, your OTP for resetting your password is: ${otp}.`,
     };
 
     await transporter.sendMail(mailDetails);
-    res.status(200).json({ status: "success", message: "OTP has been sent to your email." });
+    console.log("OTP email sent successfully.");
+
+    res.status(200).send("OTP sent to your email.");
   } catch (error) {
-    res.status(500).json({ status: "error", message: "An error occurred while sending OTP." });
-  }
-};
-
-// Reset Password with OTP
-const resetPasswordWithOtp = async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-
-  try {
-    const user = await bankModel.findOne({ email });
-    if (!user) return res.status(404).json({ status: "error", message: "User not found." });
-
-    if (user.resetOtp !== otp || Date.now() > user.resetOtpExpiry) {
-      return res.status(400).json({ status: "error", message: "Invalid or expired OTP." });
-    }
-
-    user.password = await bcrypt.hash(newPassword, 10); // Hash new password
-    user.resetOtp = null;
-    user.resetOtpExpiry = null;
-    await user.save();
-
-    res.status(200).json({ status: "success", message: "Password reset successfully." });
-  } catch (error) {
-    res.status(500).json({ status: "error", message: "An error occurred while resetting the password." });
+    console.error("Error sending OTP:", error);
+    res.status(500).send("An error occurred while sending the OTP.");
   }
 };
 
@@ -158,6 +179,6 @@ module.exports = {
   bankerLogin,
   DepositData,
   balanceDisplay,
-  sendResetOtp,
-  resetPasswordWithOtp,
+  resetPassword,
+  sendOtp
 };

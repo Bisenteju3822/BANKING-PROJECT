@@ -5,12 +5,13 @@ import Registration from "./Pages/Registration";
 import Dashboard from "./Dashboard";
 import HomePage from "./Pages/HomePage";
 import Accountstate from "./Pages/AccountState";
-import ResetPassword from "./Pages/ResetPassword";
-import BalanceInquirey from "./Pages/BalanceInquirey";
+import ResetPassword from "./Pages/ResetPasword";
+import BalanceInquiry from "./Pages/BalanceInquirey";
 import BillPayment from "./BillPayment";
 import DepositeMoney from "./Pages/DepositeMoney";
 import Withdraw from "./Pages/Withdraw";
 import Services from "./Pages/Services";
+import SendOtp from "./Pages/Sendotp";
 const App = () => {
   return (
     <BrowserRouter>
@@ -19,11 +20,12 @@ const App = () => {
           <Route index element={<HomePage />} />
           <Route path="login" element={<Login />} />
           <Route path="registration" element={<Registration />} />
+          <Route path="sendotp" element={<SendOtp />} />
         </Route>
 
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/accountstatement" element={<Accountstate />} />
-        <Route path="/balanceInquiry" element={<BalanceInquirey />} />
+        <Route path="/balanceInquiry" element={<BalanceInquiry />} />
         <Route path="/deposit" element={<DepositeMoney />} />
         <Route path="/withdraw" element={<Withdraw />} />
         <Route path="/resetpassword" element={<ResetPassword />} />
